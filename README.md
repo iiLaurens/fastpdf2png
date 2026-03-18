@@ -80,7 +80,25 @@ engine.close();
   <img src=".github/assets/architecture.svg" alt="Architecture" width="800">
 </p>
 
-PDFium renders pages to BGRA bitmaps. A SIMD pass (NEON/AVX2) checks if R==G==B — if so, the page is encoded as 8-bit grayscale (1/3 the data). A patched libdeflate compresses into a single IDAT chunk, assembled zero-copy into a valid PNG. Workers run as `fork()` processes with shared-memory atomic page counters.
+### Rendering
+
+Google's [PDFium](https://pdfium.googlesource.com/pdfium/) (the engine inside Chromium) renders each page into a raw BGRA bitmap in memory. This gives us pixel-perfect output identical to what Chrome displays.
+
+### Grayscale detection
+
+Before encoding, a SIMD-accelerated pass scans every pixel to check if R == G == B. Most document pages (text, tables, charts) are grayscale — detecting this lets us encode them as 8-bit PNG instead of 24-bit RGB, cutting data size by 66% with zero quality loss. On ARM this uses NEON `vld4/vceq` intrinsics; on x86 it uses SSE/AVX2.
+
+### PNG encoding
+
+Instead of the standard zlib/libpng pipeline, we use a patched [libdeflate](https://github.com/ebiggers/libdeflate) with a modified hash-skip optimization that skips redundant hash table insertions for long matches (+45% throughput). The compressed data goes directly into a pre-allocated output buffer — the PNG header, IDAT chunk, and IEND trailer are assembled around it with zero intermediate copies. CRC32 checksums are computed using hardware-accelerated instructions (CRC32 on ARM, PCLMUL on x86).
+
+### Parallelism
+
+PDFium is not thread-safe, so we use `fork()` to create isolated worker processes. Each worker shares a single atomic page counter via `mmap`'d shared memory — workers grab the next unprocessed page with `fetch_add`, render it, and write the PNG to disk. Copy-on-write semantics mean the PDFium library and document data are shared across workers without duplicating memory.
+
+### Thread-local pools
+
+Each worker maintains thread-local memory pools for pixel buffers and compression scratch space. After the first page warms up the pools, subsequent pages require zero `malloc`/`free` calls in the hot path.
 
 ## CLI reference
 
