@@ -1,0 +1,34 @@
+# Build artifacts
+build/
+*.o
+*.so
+*.dylib
+*.a
+*.dSYM/
+
+# PDFium (downloaded at build time)
+pdfium
+pdfium/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+.eggs/
+*.whl
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing/benchmark output
+/tmp/
+*.png
+bench_sample.pdf
+.playwright-mcp/

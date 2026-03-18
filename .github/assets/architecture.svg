@@ -1,0 +1,108 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 870 280" font-family="'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif">
+  <defs>
+    <linearGradient id="g1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e8716d"/>
+      <stop offset="100%" style="stop-color:#d4585a"/>
+    </linearGradient>
+    <linearGradient id="g2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2d2b55"/>
+      <stop offset="100%" style="stop-color:#1e1c3f"/>
+    </linearGradient>
+    <linearGradient id="g3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f5a623"/>
+      <stop offset="100%" style="stop-color:#e8941a"/>
+    </linearGradient>
+    <linearGradient id="g4" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#7b68ee"/>
+      <stop offset="100%" style="stop-color:#6352d4"/>
+    </linearGradient>
+    <linearGradient id="g5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#50c878"/>
+      <stop offset="100%" style="stop-color:#3dab60"/>
+    </linearGradient>
+    <linearGradient id="g6" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#4a9bd9"/>
+      <stop offset="100%" style="stop-color:#3580bf"/>
+    </linearGradient>
+    <filter id="shadow" x="-4%" y="-4%" width="108%" height="116%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.12"/>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="870" height="280" rx="12" fill="#fafafa" stroke="#e8e8e8" stroke-width="1"/>
+
+  <!-- PDF input -->
+  <rect x="24" y="100" width="90" height="44" rx="8" fill="url(#g1)" filter="url(#shadow)"/>
+  <text x="69" y="127" text-anchor="middle" fill="white" font-size="14" font-weight="600">PDF</text>
+
+  <!-- Arrow 1 -->
+  <line x1="114" y1="122" x2="148" y2="122" stroke="#bbb" stroke-width="2" marker-end="url(#arrowhead)"/>
+
+  <!-- PDFium -->
+  <rect x="152" y="100" width="110" height="44" rx="8" fill="url(#g2)" filter="url(#shadow)"/>
+  <text x="207" y="127" text-anchor="middle" fill="white" font-size="14" font-weight="600">PDFium</text>
+  <text x="207" y="160" text-anchor="middle" fill="#999" font-size="10">Chromium engine</text>
+
+  <!-- Arrow 2 -->
+  <line x1="262" y1="122" x2="310" y2="122" stroke="#bbb" stroke-width="2"/>
+
+  <!-- Gray? diamond -->
+  <g transform="translate(348, 122)" filter="url(#shadow)">
+    <rect x="-38" y="-38" width="76" height="76" rx="8" fill="url(#g3)" transform="rotate(45)"/>
+    <text x="0" y="5" text-anchor="middle" fill="white" font-size="13" font-weight="600">Gray?</text>
+  </g>
+
+  <!-- Arrow to yes -->
+  <line x1="385" y1="85" x2="440" y2="55" stroke="#50c878" stroke-width="2"/>
+  <text x="400" y="62" fill="#50c878" font-size="11" font-weight="600">yes</text>
+
+  <!-- Arrow to no -->
+  <line x1="385" y1="159" x2="440" y2="189" stroke="#e8716d" font-weight="600" stroke-width="2"/>
+  <text x="398" y="190" fill="#e8716d" font-size="11" font-weight="600">no</text>
+
+  <!-- 1 B/px (grayscale) -->
+  <rect x="444" y="32" width="120" height="44" rx="8" fill="url(#g5)" filter="url(#shadow)"/>
+  <text x="504" y="52" text-anchor="middle" fill="white" font-size="13" font-weight="600">1 byte/px</text>
+  <text x="504" y="68" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="10">grayscale</text>
+
+  <!-- 3 B/px (RGB) -->
+  <rect x="444" y="168" width="120" height="44" rx="8" fill="url(#g1)" filter="url(#shadow)"/>
+  <text x="504" y="188" text-anchor="middle" fill="white" font-size="13" font-weight="600">3 bytes/px</text>
+  <text x="504" y="204" text-anchor="middle" fill="rgba(255,255,255,0.8)" font-size="10">BGRA → RGB</text>
+
+  <!-- Converge arrows -->
+  <line x1="564" y1="54" x2="610" y2="110" stroke="#bbb" stroke-width="2"/>
+  <line x1="564" y1="190" x2="610" y2="134" stroke="#bbb" stroke-width="2"/>
+
+  <!-- libdeflate -->
+  <rect x="614" y="100" width="120" height="44" rx="8" fill="url(#g4)" filter="url(#shadow)"/>
+  <text x="674" y="127" text-anchor="middle" fill="white" font-size="13" font-weight="600">libdeflate</text>
+  <text x="674" y="160" text-anchor="middle" fill="#999" font-size="10">patched DEFLATE</text>
+
+  <!-- Arrow 4 -->
+  <line x1="734" y1="122" x2="768" y2="122" stroke="#bbb" stroke-width="2"/>
+
+  <!-- PNG assembly -->
+  <rect x="772" y="100" width="80" height="44" rx="8" fill="url(#g6)" filter="url(#shadow)"/>
+  <text x="812" y="127" text-anchor="middle" fill="white" font-size="14" font-weight="600">PNG</text>
+  <text x="812" y="160" text-anchor="middle" fill="#999" font-size="10">zero-copy</text>
+
+
+  <!-- SIMD badges -->
+  <rect x="444" y="82" width="52" height="18" rx="9" fill="#f0e6ff" stroke="#7b68ee" stroke-width="1"/>
+  <text x="470" y="94" text-anchor="middle" fill="#6352d4" font-size="9" font-weight="600">NEON</text>
+
+  <rect x="502" y="82" width="52" height="18" rx="9" fill="#f0e6ff" stroke="#7b68ee" stroke-width="1"/>
+  <text x="528" y="94" text-anchor="middle" fill="#6352d4" font-size="9" font-weight="600">AVX2</text>
+
+  <!-- Title area -->
+  <text x="24" y="252" fill="#666" font-size="11">SIMD-accelerated pipeline: NEON (arm64) / AVX2 + SSE4.1 (x86_64)</text>
+
+  <!-- Arrowhead marker -->
+  <defs>
+    <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#bbb"/>
+    </marker>
+  </defs>
+</svg>

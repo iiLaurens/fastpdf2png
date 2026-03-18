@@ -1,0 +1,26 @@
+{
+  "name": "fastpdf2png",
+  "version": "1.0.0",
+  "description": "Ultra-fast PDF to PNG converter",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nataell95/fastpdf2png"
+  },
+  "author": "Nataell Cornu",
+  "keywords": ["pdf", "png", "converter", "pdfium", "fast", "simd"],
+  "engines": {
+    "node": ">=14"
+  },
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "bin/"
+  ],
+  "optionalDependencies": {
+    "@fastpdf2png/darwin-arm64": "1.0.0",
+    "@fastpdf2png/linux-x64": "1.0.0"
+  }
+}
