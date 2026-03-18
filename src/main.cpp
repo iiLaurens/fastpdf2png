@@ -79,9 +79,18 @@ void InitPdfium() {
 // ---------------------------------------------------------------------------
 
 bool RenderPage(FPDF_DOCUMENT doc, int page_idx, float dpi,
-                const char* pattern, int compression) {
+                const char* pattern, int compression, bool no_images = false) {
   auto* page = FPDF_LoadPage(doc, page_idx);
   if (!page) return false;
+
+  if (no_images) {
+    const auto obj_count = FPDFPage_CountObjects(page);
+    for (int i = obj_count - 1; i >= 0; --i) {
+      auto* obj = FPDFPage_GetObject(page, i);
+      if (obj && FPDFPageObj_GetType(obj) == FPDF_PAGEOBJ_IMAGE)
+        FPDFPage_RemoveObject(page, obj);
+    }
+  }
 
   const auto scale = dpi / kPointsPerInch;
   const auto width  = static_cast<int>(FPDF_GetPageWidth(page) * scale + 0.5f);
@@ -121,13 +130,13 @@ bool RenderPage(FPDF_DOCUMENT doc, int page_idx, float dpi,
 // ---------------------------------------------------------------------------
 
 int RenderSingle(const char* pdf_path, float dpi, const char* pattern,
-                 int pages, int compression) {
+                 int pages, int compression, bool no_images = false) {
   auto* doc = FPDF_LoadDocument(pdf_path, nullptr);
   if (!doc) { std::fprintf(stderr, "Failed to open: %s\n", pdf_path); return 1; }
 
   int rendered = 0;
   for (int i = 0; i < pages; ++i) {
-    if (RenderPage(doc, i, dpi, pattern, compression))
+    if (RenderPage(doc, i, dpi, pattern, compression, no_images))
       ++rendered;
   }
 
@@ -141,14 +150,14 @@ int RenderSingle(const char* pdf_path, float dpi, const char* pattern,
 
 #ifndef _WIN32
 [[noreturn]] void WorkerLoop(const char* pdf_path, float dpi, const char* pattern,
-                             int compression, SharedState* shared) {
+                             int compression, bool no_images, SharedState* shared) {
   auto* doc = FPDF_LoadDocument(pdf_path, nullptr);
   if (!doc) std::exit(1);
 
   while (true) {
     const auto page = ClaimNextPage(shared);
     if (page >= shared->total_pages) break;
-    if (RenderPage(doc, page, dpi, pattern, compression))
+    if (RenderPage(doc, page, dpi, pattern, compression, no_images))
       MarkCompleted(shared);
   }
 
@@ -157,7 +166,7 @@ int RenderSingle(const char* pdf_path, float dpi, const char* pattern,
 }
 
 int RenderMulti(const char* pdf_path, float dpi, const char* pattern,
-                int pages, int workers, int compression) {
+                int pages, int workers, int compression, bool no_images = false) {
   auto* shared = static_cast<SharedState*>(
       mmap(nullptr, sizeof(SharedState), PROT_READ | PROT_WRITE,
            MAP_SHARED | MAP_ANONYMOUS, -1, 0));
@@ -172,7 +181,7 @@ int RenderMulti(const char* pdf_path, float dpi, const char* pattern,
 
   for (int i = 0; i < workers; ++i) {
     if (auto pid = fork(); pid == 0)
-      WorkerLoop(pdf_path, dpi, pattern, compression, shared);
+      WorkerLoop(pdf_path, dpi, pattern, compression, no_images, shared);
     else if (pid > 0)
       children.push_back(pid);
   }
@@ -192,7 +201,7 @@ int RenderMulti(const char* pdf_path, float dpi, const char* pattern,
 
 #ifdef _WIN32
 int RunWindowsWorker(const char* pdf_path, float dpi, const char* pattern,
-                     int compression, const char* shm_name) {
+                     int compression, bool no_images, const char* shm_name) {
   InitPdfium();
 
   auto hMap = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, shm_name);
@@ -217,7 +226,7 @@ int RunWindowsWorker(const char* pdf_path, float dpi, const char* pattern,
   while (true) {
     const auto page = ClaimNextPage(shared);
     if (page >= shared->total_pages) break;
-    if (RenderPage(doc, page, dpi, pattern, compression))
+    if (RenderPage(doc, page, dpi, pattern, compression, no_images))
       MarkCompleted(shared);
   }
 
@@ -229,7 +238,7 @@ int RunWindowsWorker(const char* pdf_path, float dpi, const char* pattern,
 }
 
 int RenderMulti(const char* pdf_path, float dpi, const char* pattern,
-                int pages, int workers, int compression) {
+                int pages, int workers, int compression, bool no_images = false) {
   char shm_name[64];
   std::snprintf(shm_name, sizeof(shm_name), "fastpdf2png_%lu",
                 static_cast<unsigned long>(GetCurrentProcessId()));
@@ -260,8 +269,8 @@ int RenderMulti(const char* pdf_path, float dpi, const char* pattern,
   for (int i = 0; i < workers; ++i) {
     char cmdline[8192];
     std::snprintf(cmdline, sizeof(cmdline),
-                  "\"%s\" --worker \"%s\" \"%s\" %d %d \"%s\"",
-                  exe_path, pdf_path, pattern, dpi_x10, compression, shm_name);
+                  "\"%s\" --worker \"%s\" \"%s\" %d %d %d \"%s\"",
+                  exe_path, pdf_path, pattern, dpi_x10, compression, (int)no_images, shm_name);
 
     STARTUPINFOA si{};
     si.cb = sizeof(si);
@@ -333,6 +342,11 @@ int RunDaemon() {
       const auto dpi = (ntok >= 4) ? static_cast<float>(std::atof(tokens[3])) : 150.0f;
       const auto workers = (ntok >= 5) ? std::atoi(tokens[4]) : 4;
       const auto comp = (ntok >= 6) ? std::atoi(tokens[5]) : 2;
+      const auto no_images = (ntok >= 7) && (
+          std::string_view{tokens[6]} == "1" ||
+          std::string_view{tokens[6]} == "true" ||
+          std::string_view{tokens[6]} == "True" ||
+          std::string_view{tokens[6]} == "yes");
 
       auto* doc = FPDF_LoadDocument(pdf, nullptr);
       if (!doc) { std::printf("ERROR cannot open %s\n", pdf); std::fflush(stdout); continue; }
@@ -341,8 +355,8 @@ int RunDaemon() {
 
       const auto t0 = std::chrono::high_resolution_clock::now();
       const auto result = (workers > 1)
-          ? RenderMulti(pdf, dpi, pat, pages, workers, comp)
-          : RenderSingle(pdf, dpi, pat, pages, comp);
+          ? RenderMulti(pdf, dpi, pat, pages, workers, comp, no_images)
+          : RenderSingle(pdf, dpi, pat, pages, comp, no_images);
       const auto t1 = std::chrono::high_resolution_clock::now();
       const auto elapsed = std::chrono::duration<double>(t1 - t0).count();
 
@@ -381,9 +395,10 @@ int main(int argc, char* argv[]) {
     return RunDaemon();
 
 #ifdef _WIN32
-  if (argc == 7 && std::string_view{argv[1]} == "--worker") {
+  if (argc == 8 && std::string_view{argv[1]} == "--worker") {
     const auto dpi = std::atoi(argv[4]) / 10.0f;
-    return RunWindowsWorker(argv[2], dpi, argv[3], std::atoi(argv[5]), argv[6]);
+    const auto no_images = std::atoi(argv[6]) != 0;
+    return RunWindowsWorker(argv[2], dpi, argv[3], std::atoi(argv[5]), no_images, argv[7]);
   }
 #endif
 
@@ -391,13 +406,14 @@ int main(int argc, char* argv[]) {
     std::fprintf(stderr,
         "fastpdf2png - Ultra-fast PDF to PNG converter\n\n"
         "Usage:\n"
-        "  %s input.pdf output_%%03d.png [dpi] [workers] [-c level]\n"
+        "  %s input.pdf output_%%03d.png [dpi] [workers] [-c level] [noImages]\n"
         "  %s --info input.pdf\n"
         "  %s --daemon\n\n"
         "Options:\n"
         "  dpi       Resolution (default: 150)\n"
         "  workers   Parallel workers (default: 4)\n"
-        "  -c level  0=fast, 1=medium, 2=best (default: 2)\n",
+        "  -c level  0=fast, 1=medium, 2=best (default: 2)\n"
+        "  noImages  Remove PDF image objects before rendering\n",
         argv[0], argv[0], argv[0]);
     return 1;
   }
@@ -407,11 +423,16 @@ int main(int argc, char* argv[]) {
   const auto dpi = (argc > 3) ? static_cast<float>(std::atof(argv[3])) : 150.0f;
   auto workers = (argc > 4) ? std::atoi(argv[4]) : 4;
   auto compression = 2;
+  auto no_images = false;
 
   for (int i = 5; i < argc; ++i) {
     if (std::string_view{argv[i]} == "-c" && i + 1 < argc) {
       compression = std::clamp(std::atoi(argv[i + 1]), 0, 2);
-      break;
+      ++i;
+      continue;
+    }
+    if (std::string_view{argv[i]} == "noImages" || std::string_view{argv[i]} == "--noImages") {
+      no_images = true;
     }
   }
 
@@ -435,8 +456,8 @@ int main(int argc, char* argv[]) {
   const auto t0 = std::chrono::high_resolution_clock::now();
 
   const auto result = (workers > 1)
-      ? RenderMulti(pdf_path, dpi, pattern, pages, workers, compression)
-      : RenderSingle(pdf_path, dpi, pattern, pages, compression);
+      ? RenderMulti(pdf_path, dpi, pattern, pages, workers, compression, no_images)
+      : RenderSingle(pdf_path, dpi, pattern, pages, compression, no_images);
 
   FPDF_DestroyLibrary();
 

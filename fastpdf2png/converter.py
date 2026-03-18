@@ -32,7 +32,12 @@ def _find_binary() -> Path:
 # Simple API
 # ---------------------------------------------------------------------------
 
-def to_images(pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> list:
+def to_images(
+    pdf: Union[str, Path],
+    dpi: int = 150,
+    workers: int = None,
+    no_images: bool = False,
+) -> list:
     """
     Convert a PDF to a list of PIL images.
 
@@ -40,6 +45,7 @@ def to_images(pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> lis
         pdf: Path to the PDF file.
         dpi: Resolution (default 150). Use 300 for print quality.
         workers: Parallel worker processes (default: auto, max 4).
+        no_images: Remove image objects from PDF pages before rendering.
 
     Returns:
         List of PIL.Image.Image — one per page.
@@ -57,7 +63,10 @@ def to_images(pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> lis
             "Pillow is required: pip install Pillow\n"
             "Or use fastpdf2png.to_bytes() for raw PNG data."
         )
-    return [Image.open(io.BytesIO(b)) for b in to_bytes(pdf, dpi=dpi, workers=workers)]
+    return [
+        Image.open(io.BytesIO(b))
+        for b in to_bytes(pdf, dpi=dpi, workers=workers, no_images=no_images)
+    ]
 
 
 def to_files(
@@ -66,6 +75,7 @@ def to_files(
     dpi: int = 150,
     prefix: str = "page_",
     workers: int = None,
+    no_images: bool = False,
 ) -> List[Path]:
     """
     Convert a PDF to PNG files on disk.
@@ -76,6 +86,7 @@ def to_files(
         dpi: Resolution (default 150).
         prefix: Filename prefix (default "page_").
         workers: Parallel worker processes (default: auto, max 4).
+        no_images: Remove image objects from PDF pages before rendering.
 
     Returns:
         Sorted list of PNG file paths.
@@ -84,10 +95,15 @@ def to_files(
         fastpdf2png.to_files("report.pdf", "output/")
         # Creates: output/page_001.png, output/page_002.png, ...
     """
-    return _run_render(pdf, output_dir, dpi, prefix, workers)
+    return _run_render(pdf, output_dir, dpi, prefix, workers, no_images=no_images)
 
 
-def to_bytes(pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> List[bytes]:
+def to_bytes(
+    pdf: Union[str, Path],
+    dpi: int = 150,
+    workers: int = None,
+    no_images: bool = False,
+) -> List[bytes]:
     """
     Convert a PDF to PNG bytes in memory.
 
@@ -95,6 +111,7 @@ def to_bytes(pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> List
         pdf: Path to the PDF file.
         dpi: Resolution (default 150).
         workers: Parallel worker processes (default: auto, max 4).
+        no_images: Remove image objects from PDF pages before rendering.
 
     Returns:
         List of PNG data as bytes — one per page.
@@ -105,7 +122,7 @@ def to_bytes(pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> List
             f.write(data[0])
     """
     with tempfile.TemporaryDirectory() as tmpdir:
-        files = _run_render(pdf, tmpdir, dpi, workers=workers)
+        files = _run_render(pdf, tmpdir, dpi, workers=workers, no_images=no_images)
         return [f.read_bytes() for f in files]
 
 
@@ -126,7 +143,14 @@ def page_count(pdf: Union[str, Path]) -> int:
     return int(result.stdout.strip())
 
 
-def _run_render(pdf, output_dir, dpi=150, prefix="page_", workers=None):
+def _run_render(
+    pdf,
+    output_dir,
+    dpi=150,
+    prefix="page_",
+    workers=None,
+    no_images: bool = False,
+):
     binary = _find_binary()
     pdf = Path(pdf).resolve()
     output_dir = Path(output_dir).resolve()
@@ -138,8 +162,12 @@ def _run_render(pdf, output_dir, dpi=150, prefix="page_", workers=None):
     output_dir.mkdir(parents=True, exist_ok=True)
     pattern = str(output_dir / f"{prefix}%03d.png")
 
+    cmd = [str(binary), str(pdf), pattern, str(dpi), str(w), "-c", "2"]
+    if no_images:
+        cmd.append("noImages")
+
     result = subprocess.run(
-        [str(binary), str(pdf), pattern, str(dpi), str(w), "-c", "2"],
+        cmd,
         capture_output=True, text=True,
     )
     if result.returncode != 0:
@@ -203,29 +231,52 @@ class Engine:
             raise RuntimeError(line)
         return line
 
-    def to_images(self, pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> list:
+    def to_images(
+        self,
+        pdf: Union[str, Path],
+        dpi: int = 150,
+        workers: int = None,
+        no_images: bool = False,
+    ) -> list:
         """Convert a PDF to PIL images."""
         try:
             from PIL import Image
         except ImportError:
             raise ImportError("Pillow required: pip install Pillow")
-        return [Image.open(io.BytesIO(b)) for b in self.to_bytes(pdf, dpi=dpi, workers=workers)]
+        return [
+            Image.open(io.BytesIO(b))
+            for b in self.to_bytes(pdf, dpi=dpi, workers=workers, no_images=no_images)
+        ]
 
     def to_files(self, pdf: Union[str, Path], output_dir: Union[str, Path],
-                 dpi: int = 150, prefix: str = "page_", workers: int = None) -> List[Path]:
+                 dpi: int = 150, prefix: str = "page_", workers: int = None,
+                 no_images: bool = False) -> List[Path]:
         """Convert a PDF to PNG files on disk."""
         pdf = str(Path(pdf).resolve())
         output_dir = Path(output_dir).resolve()
         output_dir.mkdir(parents=True, exist_ok=True)
         pattern = str(output_dir / f"{prefix}%03d.png")
         w = workers if workers is not None else _AUTO_WORKERS
-        self._cmd(f"RENDER\t{pdf}\t{pattern}\t{dpi}\t{w}\t2")
+        no_images_flag = "1" if no_images else "0"
+        self._cmd(f"RENDER\t{pdf}\t{pattern}\t{dpi}\t{w}\t2\t{no_images_flag}")
         return sorted(output_dir.glob(f"{prefix}*.png"))
 
-    def to_bytes(self, pdf: Union[str, Path], dpi: int = 150, workers: int = None) -> List[bytes]:
+    def to_bytes(
+        self,
+        pdf: Union[str, Path],
+        dpi: int = 150,
+        workers: int = None,
+        no_images: bool = False,
+    ) -> List[bytes]:
         """Convert a PDF to PNG bytes in memory."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            files = self.to_files(pdf, tmpdir, dpi=dpi, workers=workers)
+            files = self.to_files(
+                pdf,
+                tmpdir,
+                dpi=dpi,
+                workers=workers,
+                no_images=no_images,
+            )
             return [f.read_bytes() for f in files]
 
     def page_count(self, pdf: Union[str, Path]) -> int:
