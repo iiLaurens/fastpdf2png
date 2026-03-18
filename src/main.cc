@@ -1,8 +1,9 @@
 // fastpdf2png - Ultra-fast PDF to PNG converter CLI
 // SPDX-License-Identifier: MIT
 //
-// Performance: 1568 pg/s (8 workers, 150 DPI) = 22x MuPDF
-// Uses fork()-based parallelism (PDFium is not thread-safe)
+// Performance: 1500+ pg/s (8 workers, 150 DPI)
+// Unix: fork()-based parallelism (PDFium is not thread-safe)
+// Windows: CreateProcess()-based parallelism with named shared memory
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,12 +30,30 @@ namespace {
 
 constexpr float kPointsPerInch = 72.0f;
 
+#ifdef _WIN32
+// Windows: use volatile LONG + Interlocked* for cross-process safety
+struct SharedState {
+  volatile LONG next_page;
+  char pad1[60];  // Separate cache lines
+  volatile LONG completed_pages;
+  char pad2[60];
+  int total_pages;
+};
+
+inline int SharedFetchAdd(volatile LONG* p) {
+  return InterlockedExchangeAdd(p, 1);
+}
+inline int SharedLoad(volatile LONG* p) {
+  return InterlockedCompareExchange(p, 0, 0);
+}
+#else
 struct SharedState {
   std::atomic<int> next_page;
   std::atomic<int> completed_pages;
   int total_pages;
-  int pad[13];  // Cache line padding
+  int pad[13];
 };
+#endif
 
 bool RenderPage(FPDF_DOCUMENT doc, int page_idx, float dpi,
                 const char* pattern, int compression) {
@@ -118,6 +137,114 @@ int RenderMultiProcess(const char* pdf_path, float dpi, const char* pattern,
 
   int completed = shared->completed_pages.load();
   munmap(shared, sizeof(SharedState));
+  return (completed == pages) ? 0 : 1;
+}
+#endif
+
+#ifdef _WIN32
+int RunWindowsWorker(const char* pdf_path, float dpi, const char* pattern,
+                     int compression, const char* shm_name) {
+  FPDF_LIBRARY_CONFIG config;
+  memset(&config, 0, sizeof(config));
+  config.version = 2;
+  FPDF_InitLibraryWithConfig(&config);
+
+  HANDLE hMap = OpenFileMappingA(FILE_MAP_ALL_ACCESS, FALSE, shm_name);
+  if (!hMap) {
+    fprintf(stderr, "Worker: OpenFileMapping failed (%lu)\n", GetLastError());
+    FPDF_DestroyLibrary();
+    return 1;
+  }
+
+  SharedState* shared = static_cast<SharedState*>(
+      MapViewOfFile(hMap, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedState)));
+  if (!shared) { CloseHandle(hMap); FPDF_DestroyLibrary(); return 1; }
+
+  FPDF_DOCUMENT doc = FPDF_LoadDocument(pdf_path, nullptr);
+  if (!doc) {
+    UnmapViewOfFile(shared);
+    CloseHandle(hMap);
+    FPDF_DestroyLibrary();
+    return 1;
+  }
+
+  while (true) {
+    int page = SharedFetchAdd(&shared->next_page);
+    if (page >= shared->total_pages) break;
+    if (RenderPage(doc, page, dpi, pattern, compression))
+      SharedFetchAdd(&shared->completed_pages);
+  }
+
+  FPDF_CloseDocument(doc);
+  UnmapViewOfFile(shared);
+  CloseHandle(hMap);
+  FPDF_DestroyLibrary();
+  return 0;
+}
+
+int RenderMultiProcess(const char* pdf_path, float dpi, const char* pattern,
+                       int pages, int workers, int compression) {
+  char shm_name[64];
+  snprintf(shm_name, sizeof(shm_name), "fastpdf2png_%lu",
+           static_cast<unsigned long>(GetCurrentProcessId()));
+
+  HANDLE hMap = CreateFileMappingA(
+      INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+      0, sizeof(SharedState), shm_name);
+  if (!hMap) {
+    fprintf(stderr, "CreateFileMapping failed (%lu)\n", GetLastError());
+    return 1;
+  }
+
+  SharedState* shared = static_cast<SharedState*>(
+      MapViewOfFile(hMap, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(SharedState)));
+  if (!shared) { CloseHandle(hMap); return 1; }
+
+  shared->next_page = 0;
+  shared->completed_pages = 0;
+  shared->total_pages = pages;
+
+  char exe_path[MAX_PATH];
+  GetModuleFileNameA(nullptr, exe_path, MAX_PATH);
+
+  // Pass DPI as integer (x10) to avoid locale-dependent float formatting
+  int dpi_x10 = static_cast<int>(dpi * 10 + 0.5f);
+
+  std::vector<HANDLE> children;
+  for (int i = 0; i < workers; i++) {
+    char cmdline[8192];
+    snprintf(cmdline, sizeof(cmdline),
+             "\"%s\" --worker \"%s\" \"%s\" %d %d \"%s\"",
+             exe_path, pdf_path, pattern, dpi_x10, compression, shm_name);
+
+    STARTUPINFOA si;
+    PROCESS_INFORMATION pi;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
+
+    if (CreateProcessA(nullptr, cmdline, nullptr, nullptr, FALSE,
+                       0, nullptr, nullptr, &si, &pi)) {
+      CloseHandle(pi.hThread);
+      children.push_back(pi.hProcess);
+    } else {
+      fprintf(stderr, "CreateProcess failed for worker %d (%lu)\n",
+              i, GetLastError());
+    }
+  }
+
+  if (!children.empty()) {
+    DWORD wait = WaitForMultipleObjects(static_cast<DWORD>(children.size()),
+                                        children.data(), TRUE, INFINITE);
+    if (wait == WAIT_FAILED) {
+      fprintf(stderr, "WaitForMultipleObjects failed (%lu)\n", GetLastError());
+    }
+  }
+  for (HANDLE h : children) CloseHandle(h);
+
+  int completed = SharedLoad(&shared->completed_pages);
+  UnmapViewOfFile(shared);
+  CloseHandle(hMap);
   return (completed == pages) ? 0 : 1;
 }
 #endif
@@ -260,6 +387,17 @@ int main(int argc, char* argv[]) {
   if (argc == 2 && strcmp(argv[1], "--daemon") == 0) {
     return RunDaemon();
   }
+#else
+  if (argc == 2 && strcmp(argv[1], "--daemon") == 0) {
+    fprintf(stderr, "Daemon mode is not supported on Windows\n");
+    return 1;
+  }
+  // Hidden: child worker spawned by CreateProcess for multi-process rendering
+  // --worker <pdf> <pattern> <dpi_x10> <compression> <shm_name>
+  if (argc == 7 && strcmp(argv[1], "--worker") == 0) {
+    float w_dpi = atoi(argv[4]) / 10.0f;
+    return RunWindowsWorker(argv[2], w_dpi, argv[3], atoi(argv[5]), argv[6]);
+  }
 #endif
 
   if (argc < 3) {
@@ -318,15 +456,11 @@ int main(int argc, char* argv[]) {
   auto start = std::chrono::high_resolution_clock::now();
 
   int result;
-#ifndef _WIN32
   if (workers > 1) {
     result = RenderMultiProcess(pdf_path, dpi, pattern, pages, workers, compression);
   } else {
     result = RenderSingleProcess(pdf_path, dpi, pattern, pages, compression);
   }
-#else
-  result = RenderSingleProcess(pdf_path, dpi, pattern, pages, compression);
-#endif
   FPDF_DestroyLibrary();
 
   auto end = std::chrono::high_resolution_clock::now();

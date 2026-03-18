@@ -14,10 +14,12 @@ _AUTO_WORKERS = min(4, max(1, os.cpu_count() or 1))
 
 
 def _find_binary() -> Path:
+    import sys
+    ext = ".exe" if sys.platform == "win32" else ""
     for p in [
-        _PKG_DIR / "bin" / "fastpdf2png",           # installed via pip
-        _ROOT_DIR / "build" / "fastpdf2png",         # built from source
-        Path("/usr/local/bin/fastpdf2png"),
+        _PKG_DIR / "bin" / f"fastpdf2png{ext}",     # installed via pip
+        _ROOT_DIR / "build" / f"fastpdf2png{ext}",   # built from source
+        Path(f"/usr/local/bin/fastpdf2png{ext}"),
     ]:
         if p.exists():
             return p

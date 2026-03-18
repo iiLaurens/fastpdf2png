@@ -124,6 +124,7 @@ fastpdf2png --daemon
 | macOS | x86_64 | AVX2, SSE4.1 |
 | Linux | x86_64 | AVX2, SSE4.1 |
 | Linux | arm64 | NEON |
+| Windows | x86_64 | AVX2, SSE4.1 |
 
 ## License
 

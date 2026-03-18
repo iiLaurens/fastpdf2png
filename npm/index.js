@@ -18,20 +18,22 @@ const os = require("os");
 
 // Locate the binary: bundled platform package → local build → PATH
 function findBinary() {
-  // 1. Platform-specific npm package (installed via optionalDependencies)
   const platform = os.platform();
   const arch = os.arch();
+  const ext = platform === "win32" ? ".exe" : "";
   const platformPkg = `@fastpdf2png/${platform}-${arch}`;
+
+  // 1. Platform-specific npm package (installed via optionalDependencies)
   try {
-    return require.resolve(`${platformPkg}/fastpdf2png`);
+    return require.resolve(`${platformPkg}/fastpdf2png${ext}`);
   } catch (_) {}
 
   // 2. Local build (development)
-  const localBin = path.join(__dirname, "..", "build", "fastpdf2png");
+  const localBin = path.join(__dirname, "..", "build", `fastpdf2png${ext}`);
   if (fs.existsSync(localBin)) return localBin;
 
   // 3. Bundled in this package
-  const bundledBin = path.join(__dirname, "bin", "fastpdf2png");
+  const bundledBin = path.join(__dirname, "bin", `fastpdf2png${ext}`);
   if (fs.existsSync(bundledBin)) return bundledBin;
 
   throw new Error(

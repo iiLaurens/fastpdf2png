@@ -14,9 +14,16 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <mutex>
+
+#ifdef _WIN32
+#include <io.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#else
 #include <fcntl.h>
 #include <unistd.h>
-#include <mutex>
+#endif
 
 #include "libdeflate.h"
 #include "fpng/fpng.h"
@@ -319,6 +326,14 @@ int WritePngLibdeflate(const char* filename, const uint8_t* pixels,
 
   size_t png_size = FinalizePng(out, width, height, comp_size, color_type);
 
+#ifdef _WIN32
+  int fd = _open(filename, _O_WRONLY | _O_CREAT | _O_TRUNC | _O_BINARY, _S_IREAD | _S_IWRITE);
+  if (fd < 0) return FAST_PNG_ERROR_FILE_OPEN_FAILED;
+  int written = _write(fd, out, static_cast<unsigned int>(png_size));
+  _close(fd);
+  return (written == static_cast<int>(png_size))
+             ? FAST_PNG_SUCCESS : FAST_PNG_ERROR_FILE_WRITE_FAILED;
+#else
   int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0644);
   if (fd < 0) return FAST_PNG_ERROR_FILE_OPEN_FAILED;
 #ifdef __APPLE__
@@ -326,9 +341,9 @@ int WritePngLibdeflate(const char* filename, const uint8_t* pixels,
 #endif
   ssize_t written = write(fd, out, png_size);
   close(fd);
-
   return (written == static_cast<ssize_t>(png_size))
              ? FAST_PNG_SUCCESS : FAST_PNG_ERROR_FILE_WRITE_FAILED;
+#endif
 }
 
 int WritePngLibdeflateToMemory(const uint8_t* pixels, int width, int height,

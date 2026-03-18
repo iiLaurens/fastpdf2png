@@ -21,6 +21,7 @@
   ],
   "optionalDependencies": {
     "@fastpdf2png/darwin-arm64": "1.2.0",
-    "@fastpdf2png/linux-x64": "1.2.0"
+    "@fastpdf2png/linux-x64": "1.2.0",
+    "@fastpdf2png/win32-x64": "1.2.0"
   }
 }

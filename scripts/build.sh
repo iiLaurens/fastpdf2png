@@ -35,7 +35,13 @@ CXXFLAGS="-std=c++17 -O3 -DNDEBUG -flto"
 CFLAGS="-O3 -DNDEBUG -flto -DSUPPORT_NEAR_OPTIMAL_PARSING=0"
 
 if [ "$ARCH" = "x86_64" ]; then
-    CXXFLAGS="$CXXFLAGS -march=x86-64-v3 -mavx2 -msse4.1 -mssse3 -mpclmul"
+    SIMD_FLAGS="-mavx2 -msse4.1 -mssse3 -mpclmul"
+    # Try x86-64-v3 first, fall back to individual flags
+    if $CXX -march=x86-64-v3 -E - < /dev/null > /dev/null 2>&1; then
+        SIMD_FLAGS="-march=x86-64-v3 $SIMD_FLAGS"
+    fi
+    CXXFLAGS="$CXXFLAGS $SIMD_FLAGS"
+    CFLAGS="$CFLAGS $SIMD_FLAGS"
 elif [ "$ARCH" = "arm64" ] || [ "$ARCH" = "aarch64" ]; then
     CXXFLAGS="$CXXFLAGS -mcpu=native"
     CFLAGS="$CFLAGS -mcpu=native"
