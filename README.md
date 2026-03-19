@@ -111,7 +111,7 @@ fastpdf2png --daemon
 | Flag | Default | Description |
 |------|---------|-------------|
 | `dpi` | 150 | Output resolution |
-| `workers` | 1 | Parallel processes |
+| `workers` | 4 | Parallel processes |
 | `-c 0/1/2` | 2 | Compression: fast / medium / best |
 | `--info` | | Print page count |
 | `--daemon` | | Persistent mode (stdin commands) |

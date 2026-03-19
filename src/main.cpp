@@ -331,7 +331,7 @@ int RunDaemon() {
       const auto* pdf = tokens[1];
       const auto* pat = tokens[2];
       const auto dpi = (ntok >= 4) ? static_cast<float>(std::atof(tokens[3])) : 150.0f;
-      const auto workers = (ntok >= 5) ? std::atoi(tokens[4]) : 1;
+      const auto workers = (ntok >= 5) ? std::atoi(tokens[4]) : 4;
       const auto comp = (ntok >= 6) ? std::atoi(tokens[5]) : 2;
 
       auto* doc = FPDF_LoadDocument(pdf, nullptr);
@@ -396,7 +396,7 @@ int main(int argc, char* argv[]) {
         "  %s --daemon\n\n"
         "Options:\n"
         "  dpi       Resolution (default: 150)\n"
-        "  workers   Parallel workers (default: 1)\n"
+        "  workers   Parallel workers (default: 4)\n"
         "  -c level  0=fast, 1=medium, 2=best (default: 2)\n",
         argv[0], argv[0], argv[0]);
     return 1;
@@ -405,7 +405,7 @@ int main(int argc, char* argv[]) {
   const auto* pdf_path = argv[1];
   const auto* pattern = argv[2];
   const auto dpi = (argc > 3) ? static_cast<float>(std::atof(argv[3])) : 150.0f;
-  auto workers = (argc > 4) ? std::atoi(argv[4]) : 1;
+  auto workers = (argc > 4) ? std::atoi(argv[4]) : 4;
   auto compression = 2;
 
   for (int i = 5; i < argc; ++i) {
