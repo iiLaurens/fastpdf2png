@@ -6,7 +6,7 @@ set ROOT_DIR=%SCRIPT_DIR%..
 
 echo === Downloading pre-built PDFium for win-x64 ===
 
-set PDFIUM_BUILD=6721
+set PDFIUM_BUILD=7713
 set DOWNLOAD_URL=https://github.com/bblanchon/pdfium-binaries/releases/download/chromium/%PDFIUM_BUILD%/pdfium-win-x64.tgz
 
 if not exist "%ROOT_DIR%\pdfium" mkdir "%ROOT_DIR%\pdfium"
