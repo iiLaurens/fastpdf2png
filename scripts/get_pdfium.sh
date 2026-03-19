@@ -33,7 +33,7 @@ echo "=== Downloading pre-built PDFium for $PLATFORM ==="
 
 # Use bblanchon's pdfium-binaries (well maintained)
 # https://github.com/bblanchon/pdfium-binaries/releases
-PDFIUM_BUILD="6721"
+PDFIUM_BUILD="7713"
 DOWNLOAD_URL="https://github.com/bblanchon/pdfium-binaries/releases/download/chromium%2F${PDFIUM_BUILD}/pdfium-${PLATFORM}.tgz"
 
 echo "Trying primary source..."

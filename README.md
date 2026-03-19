@@ -11,7 +11,7 @@
 Fast PDF to PNG converter. SIMD-optimized PNG encoding, automatic grayscale detection, multi-process scaling. MIT licensed.
 
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)]()
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey)]()
 
 ## Install
 
@@ -112,7 +112,7 @@ fastpdf2png --daemon
 |------|---------|-------------|
 | `dpi` | 300 | Output resolution |
 | `workers` | 1 | Parallel processes |
-| `-c 0/1/2` | 0 | Compression: fast / medium / best |
+| `-c 0/1/2` | 2 | Compression: fast / medium / best |
 | `--info` | | Print page count |
 | `--daemon` | | Persistent mode (stdin commands) |
 
@@ -124,6 +124,7 @@ fastpdf2png --daemon
 | macOS | x86_64 | AVX2, SSE4.1 |
 | Linux | x86_64 | AVX2, SSE4.1 |
 | Linux | arm64 | NEON |
+| Windows | x86_64 | AVX2, SSE4.1 |
 
 ## License
 
