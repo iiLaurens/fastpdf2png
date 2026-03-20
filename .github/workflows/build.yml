@@ -247,7 +247,7 @@ jobs:
   publish-pypi:
     needs: [build, test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: false  # disabled until PyPI credentials are configured for this fork
     permissions:
       id-token: write
 
@@ -267,7 +267,7 @@ jobs:
   publish-npm:
     needs: [build, test]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: false  # disabled until npm credentials are configured for this fork
 
     steps:
       - uses: actions/checkout@v4
@@ -298,3 +298,23 @@ jobs:
         run: |
           cd npm
           npm publish --access public
+
+  release:
+    needs: [build, test]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/**
+          generate_release_notes: true
